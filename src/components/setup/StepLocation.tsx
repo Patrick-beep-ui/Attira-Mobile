@@ -32,8 +32,8 @@ export default function StepLocation({ onNext, next, back }: any) {
   const [loading, setLoading] = useState<boolean>(true);
   const [loadingCities, setLoadingCities] = useState<boolean>(false);
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
-  const dropdownRef = useRef<View>(null);
-  const inputRef = useRef<TextInput>(null);
+  const dropdownRef = useRef<React.ComponentRef<typeof View>>(null);
+  const inputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
   const centerAmericanCodes = ["BZ", "CR", "SV", "GT", "HN", "NI", "PA"];
   useEffect(() => {
     const fetchData = async () => {

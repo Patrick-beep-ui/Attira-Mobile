@@ -1,3 +1,4 @@
+import { jest, it, expect, beforeEach, afterEach } from "@jest/globals";
 import React from "react";
 import { render, fireEvent, waitFor, act } from "@testing-library/react-native";
 import { LanguageProvider } from "@/context/LanguageContext";
@@ -20,10 +21,10 @@ import {
 } from "@/components/ui/native";
 import es from "@/i18n/es.json";
 const mockNavigate = jest.fn();
-const mockSignIn = jest.fn().mockResolvedValue({ error: null });
-const mockSignUp = jest.fn().mockResolvedValue({ error: null });
-const mockReset = jest.fn().mockResolvedValue({ error: null });
-const mockCheckUsername = jest.fn().mockResolvedValue(true);
+const mockSignIn = jest.fn(async (..._args: string[]) => ({ error: null }));
+const mockSignUp = jest.fn(async (..._args: string[]) => ({ error: null }));
+const mockReset = jest.fn(async (..._args: string[]) => ({ error: null }));
+const mockCheckUsername = jest.fn(async (_username: string) => true);
 jest.mock("@/navigators/routeAdapter", () => ({
   useNavigate: () => mockNavigate,
 }));
