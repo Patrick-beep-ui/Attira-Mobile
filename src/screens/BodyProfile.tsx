@@ -63,8 +63,8 @@ export default function BodyProfile() {
   const [filteredCities, setFilteredCities] = useState<string[]>([]);
   const [locationLoading, setLocationLoading] = useState(true);
   const [showCityDropdown, setShowCityDropdown] = useState(false);
-  const cityDropdownRef = useRef<View>(null);
-  const cityInputRef = useRef<TextInput>(null);
+  const cityDropdownRef = useRef<React.ComponentRef<typeof View>>(null);
+  const cityInputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
   const [profile, setProfile] = useState({
     bodyType: "",
     height: "",

@@ -41,6 +41,8 @@ const inherited = (className = "") =>
       ),
     )
     .join(" ");
+export type InputHandle = React.ComponentRef<typeof TextInput>;
+export type ViewHandle = React.ComponentRef<typeof View>;
 export type NativeProps = {
   children?: ReactNode;
   className?: string;
@@ -51,7 +53,7 @@ export type NativeProps = {
   testID?: string;
   type?: string;
   title?: string;
-  ref?: React.Ref<View>;
+  ref?: React.Ref<ViewHandle>;
 };
 function flattenChildren(children: ReactNode): ReactNode[] {
   return React.Children.toArray(children).flatMap((child) =>
@@ -384,7 +386,7 @@ export function Button({
 type Change = { target: { value: string } };
 export type InputProps = Omit<
   TextInputProps,
-  "style" | "onChange" | "onKeyPress" | "ref"
+  "style" | "onChange" | "onKeyPress" | "onKeyDown" | "ref"
 > & {
   className?: string;
   style?: object;
@@ -401,7 +403,7 @@ export type InputProps = Omit<
   rows?: number;
   id?: string;
 };
-export const Input = React.forwardRef<TextInput, InputProps>(function Input(
+export const Input = React.forwardRef<InputHandle, InputProps>(function Input(
   {
     type,
     disabled,
@@ -442,7 +444,7 @@ export const Input = React.forwardRef<TextInput, InputProps>(function Input(
     />
   );
 });
-export const Textarea = React.forwardRef<TextInput, InputProps>(
+export const Textarea = React.forwardRef<InputHandle, InputProps>(
   function Textarea(props, ref) {
     return (
       <Input

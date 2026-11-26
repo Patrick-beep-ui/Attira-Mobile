@@ -8,9 +8,25 @@ Fecha: 25 de noviembre de 2026.
 
 Se trasladaron las 15 pantallas registradas en el router original y sus componentes de producto a React Native. Se conservaron las agrupaciones internas y los pasos de perfil. La política de límites particulares se parametrizó para evitar versionar datos personales. Los navegadores, layouts y providers siguen las convenciones de Mi Ruta, con `layout/`, `navigators/stack_navigators/`, `screens/`, `context/` y servicios separados.
 
-Se utilizaron Expo SDK 54, React Native 0.81.5, React 19.1, React Navigation 7, NativeWind 4, TypeScript y pnpm 11.25.0. Estas versiones forman una base compatible que pasó los checks de Expo; no se presentó una actualización a todos los paquetes más recientes como parte de esta migración.
+La base actual usa Expo SDK 58, React Native 0.88.1, React 19.3, React Navigation 7, NativeWind 4, TypeScript 6 y pnpm 11.25.0, alineada con Mi Ruta y Expo Go SDK 58. La migración inicial usaba SDK 54; esa selección producía el error de incompatibilidad al abrirla en Expo Go 58 y se corrigió actualizando conjuntamente Expo, los módulos nativos y las herramientas de pruebas. El alias TypeScript utiliza una ruta relativa sin el `baseUrl` obsoleto.
 
 El resultado es una implementación nativa revisable. La ejecución en teléfonos y la comparación visual completa contra la PWA siguen pendientes; no se afirma paridad de píxeles ni validación de todas las integraciones reales.
+
+## Compatibilidad con Expo Go SDK 58
+
+La base se comparó con `Mi_Ruta/package.json`: Expo 58.0.26, React 19.3.0 y React Native 0.88.1. Se alinearon todos los módulos recomendados por Expo, Reanimated/Worklets, Babel, Jest y el renderer de pruebas. NativeWind conserva la configuración v4 existente.
+
+Se retiraron las opciones de configuración nativa eliminadas por SDK 58 (`newArchEnabled` y `android.edgeToEdgeEnabled`). El icono utiliza PNG con los mismos píxeles que el JPEG original. No se modificaron el backend ni las variables de Supabase.
+
+Validaciones de la actualización:
+
+- TypeScript y las 22 pruebas existentes pasan con el nuevo runtime.
+- `expo install --check` y los peer dependencies están alineados.
+- Expo Doctor aprueba sus 20 comprobaciones.
+- Metro iniciado con `--go` devuelve HTTP 200 para Android e iOS, con `sdkVersion: 58.0.0`, `runtimeVersion: exposdk:58.0.0` y un launch asset. Esto verifica la versión del manifiesto que revisa Expo Go al abrir el proyecto.
+- Las exportaciones Android/iOS se verifican en los checks de la PR de actualización.
+
+Después de actualizar el código: detener el Metro anterior, ejecutar `pnpm install --frozen-lockfile` y arrancar con `pnpm start --clear`. Las pruebas en teléfonos siguen siendo necesarias para confirmar permisos e interacciones reales.
 
 ## Mapa de navegación
 

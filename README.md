@@ -28,7 +28,7 @@ No usar service role, claves de IA ni credenciales privadas en la app. Las Edge 
 
 Sin variables se puede recorrer el onboarding y ver autenticación; las acciones de acceso muestran un mensaje de configuración. No hay una sesión ficticia ni datos demo para entrar al área privada.
 
-La base probada es **Expo SDK 54 / React Native 0.81.5 / React 19.1 / NativeWind 4**. Usar un cliente compatible con SDK 54 o un development build propio. La versión actual de Expo Go puede usar otro SDK; para iOS físico, callbacks de autenticación y una instalación estable, preferir un build propio. No se ha registrado una cuenta EAS ni se han generado certificados.
+La base actual es **Expo SDK 58 / React Native 0.88.1 / React 19.3 / NativeWind 4**, alineada con Mi Ruta y con Expo Go SDK 58. Después de actualizar el repositorio, ejecutar `pnpm install --frozen-lockfile` y reiniciar Metro con `pnpm start --clear`. Para callbacks del esquema `attira://` y distribución, usar un build propio. No se ha registrado una cuenta EAS ni se han generado certificados.
 
 ## Android e iOS
 

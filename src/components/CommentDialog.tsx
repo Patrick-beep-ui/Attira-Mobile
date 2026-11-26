@@ -43,7 +43,7 @@ export function CommentDialog({
   const [newComment, setNewComment] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const textareaRef = useRef<TextInput>(null);
+  const textareaRef = useRef<React.ComponentRef<typeof TextInput>>(null);
   useEffect(() => {
     if (open) {
       loadComments();
