@@ -1,0 +1,431 @@
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  Box,
+  TextLabel,
+  Presence,
+  FadeBox,
+  Tap,
+  Composition,
+  Picture,
+} from "@/components/ui/native";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { AppShell } from "@/components/AppShell";
+import { HeaderBar } from "@/components/HeaderBar";
+import { OutfitCard } from "@/components/OutfitCard";
+import { TagChip } from "@/components/TagChip";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/context/AuthContext";
+import { useLanguage } from "@/context/LanguageContext";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { AiBadge } from "@/components/AiBadge";
+import { Trash2, X, Globe, Lock, Share2 } from "@/components/ui/icons";
+import { toast } from "@/platform/notifications";
+import type { GeneratedOutfit } from "@/services/ai-service";
+import {
+  publishOutfit,
+  unpublishOutfit,
+  shareOutfit,
+} from "@/services/outfit-service";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+const filterOptions = ["all", "work", "casual", "date-night", "event"];
+const getFilterLabel = (
+  filter: string,
+  tValue: (
+    type: import("@/context/LanguageContext").ValueType,
+    value: string,
+  ) => string,
+) => {
+  if (filter === "all") return tValue("categories", "all");
+  return tValue("occasions", filter);
+};
+interface SavedLook extends GeneratedOutfit {
+  formality?: string;
+  createdAt?: string;
+  compositionUrl?: string;
+  composition_url?: string;
+  is_public?: boolean;
+}
+export default function SavedLooks() {
+  const { user } = useAuth();
+  const { t, tValue, language } = useLanguage();
+  const [filter, setFilter] = useState("All");
+  const [selectedLook, setSelectedLook] = useState<SavedLook | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [publishing, setPublishing] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
+  // Fetch saved looks query - cached for 10 minutes
+  const { data: looksData, isLoading } = useQuery({
+    queryKey: ["saved-looks", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      // 1) Fetch outfits from the new schema
+      const { data: outfits, error: outfitsError } = await supabase
+        .from("outfits")
+        .select(
+          "id, occasion, formality, styling_notes, confidence, created_at, composition_url, is_public",
+        )
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+      if (outfitsError) {
+        console.error("Failed to fetch outfits:", outfitsError);
+        return [];
+      }
+      // 2) For each outfit, fetch its items from outfit_items joined to wardrobe_items
+      const outfitsWithItems = await Promise.all(
+        outfits.map(async (o: any) => {
+          const { data: itemRows, error: itemsError } = await supabase
+            .from("outfit_items")
+            .select(
+              "wardrobe_item_id, wardrobe_items(id, name, color, image_url, category_id, clothing_categories(name)))",
+            )
+            .eq("outfit_id", o.id);
+          if (itemsError) {
+            console.error("Failed to fetch items for outfit", o.id, itemsError);
+            return { ...o, items: [] };
+          }
+          const items = (itemRows ?? []).map((r: any) => {
+            const w = r.wardrobe_items ?? {};
+            const categoryName = w.clothing_categories?.name ?? "";
+            const categoryValue = (categoryName || "").toLowerCase();
+            return {
+              id: w.id ?? r.wardrobe_item_id,
+              name: w.name ?? "",
+              category: categoryValue,
+              color: w.color ?? null,
+              imageUrl: w.image_url ?? null,
+            };
+          });
+          return {
+            id: o.id,
+            occasion: o.occasion,
+            formality: o.formality ?? "balanced",
+            stylingNotes: o.styling_notes ?? "",
+            confidence: o.confidence ?? 0,
+            createdAt: o.created_at,
+            composition_url: o.composition_url,
+            items,
+            is_public: o.is_public ?? false,
+          };
+        }),
+      );
+      // 3) Normalize to SavedLook shape
+      return outfitsWithItems.map((o: any) => ({
+        id: o.id,
+        occasion: o.occasion,
+        formality: o.formality,
+        items: o.items,
+        stylingNotes: o.stylingNotes,
+        confidence: o.confidence,
+        createdAt: o.createdAt,
+        compositionUrl: o.composition_url,
+        composition_url: o.composition_url,
+        is_public: o.is_public,
+      }));
+    },
+    enabled: !!user,
+  });
+  const looks = looksData || [];
+  const queryClient = useQueryClient();
+  const filtered =
+    filter === "All"
+      ? looks
+      : looks.filter(
+          (l) =>
+            l.occasion.toLowerCase().replace(/\s+/g, "-") ===
+            filter.toLowerCase().replace(/\s+/g, "-"),
+        );
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    // Delete from new outfits table (and cascading items if configured)
+    const { error } = await (supabase as any)
+      .from("outfits")
+      .delete()
+      .eq("id", deleteTarget);
+    if (error) {
+      toast.error("Failed to delete look.");
+    } else {
+      queryClient.invalidateQueries({ queryKey: ["saved-looks", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["feed"] });
+      if (selectedLook?.id === deleteTarget) setSelectedLook(null);
+      toast.success("Look deleted.");
+    }
+    setDeleting(false);
+    setDeleteTarget(null);
+  };
+  const handlePublish = async (lookId: string, makePublic: boolean) => {
+    if (!user) return;
+    setPublishing(lookId);
+    try {
+      if (makePublic) {
+        await publishOutfit(user.id, lookId);
+        toast.success("Outfit is now public!");
+      } else {
+        await unpublishOutfit(user.id, lookId);
+        toast.success("Outfit is now private");
+      }
+      queryClient.invalidateQueries({ queryKey: ["saved-looks", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["feed"] });
+      if (selectedLook?.id === lookId) {
+        setSelectedLook((prev) =>
+          prev ? { ...prev, is_public: makePublic } : null,
+        );
+      }
+    } catch (err) {
+      toast.error("Failed to update visibility");
+    } finally {
+      setPublishing(null);
+    }
+  };
+  const handleShare = async (look: SavedLook) => {
+    setSharing(true);
+    try {
+      await shareOutfit(
+        look.compositionUrl ?? look.composition_url ?? null,
+        look.id,
+        language,
+      );
+    } finally {
+      setSharing(false);
+    }
+  };
+  return (
+    <AppShell>
+      <HeaderBar title={t("outfit.saved_looks")} />
+
+      <Box className="flex gap-2 overflow-x-auto px-4 pb-3 pt-1 scrollbar-none flex-row">
+        {filterOptions.map((f) => (
+          <TagChip
+            key={f}
+            label={getFilterLabel(f, tValue)}
+            active={filter === f}
+            onClick={() => setFilter(f)}
+          />
+        ))}
+      </Box>
+
+      {isLoading ? (
+        <Box className="grid grid-cols-2 gap-4 px-4 pt-3">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-64 rounded-lg" />
+          ))}
+        </Box>
+      ) : (
+        <Box className="grid grid-cols-2 gap-4 px-4 pb-24 pt-3">
+          {filtered.map((look) => (
+            <OutfitCard
+              key={look.id}
+              outfit={look}
+              compact
+              onClick={() => setSelectedLook(look)}
+            />
+          ))}
+          {filtered.length === 0 && (
+            <Box className="col-span-2 py-16 text-center">
+              <TextLabel className="text-body text-muted-foreground">
+                {t("outfit.no_saved_looks")}
+              </TextLabel>
+            </Box>
+          )}
+        </Box>
+      )}
+
+      {/* Detail Sheet */}
+      <Presence>
+        {selectedLook && (
+          <Dialog
+            open={!!selectedLook}
+            onOpenChange={(open) => !open && setSelectedLook(null)}
+          >
+            <DialogContent className="p-0">
+              <Box className="overflow-y-auto rounded-t-2xl bg-background p-5">
+                <Box className="mb-4 flex items-center justify-between flex-row">
+                  <TextLabel className="font-display text-display-2 text-foreground">
+                    {t("outfit.look_details")}
+                  </TextLabel>
+                  <Tap
+                    onPress={() => setSelectedLook(null)}
+                    className="rounded-full p-1.5 hover:bg-muted"
+                  >
+                    <X className="h-5 w-5 text-muted-foreground" />
+                  </Tap>
+                </Box>
+
+                {/* Outfit Preview */}
+                {selectedLook.composition_url && (
+                  <Composition
+                    className="mb-4 w-full overflow-hidden rounded-lg border border-border md:aspect-[0.833333] md:max-h-[calc(50vh-2rem)]"
+                    xml={decodeURIComponent(
+                      selectedLook.composition_url.replace(
+                        "data:image/svg+xml;utf8,",
+                        "",
+                      ),
+                    )
+                      .replace(/width="500"/g, 'width="100%"')
+                      .replace(/height="600"/g, 'height="100%"')}
+                  />
+                )}
+
+                {/* Occasion & Formality */}
+                <Box className="mb-4 flex flex-wrap gap-2 flex-row">
+                  <TagChip
+                    label={tValue("occasions", selectedLook.occasion)}
+                    active
+                  />
+                  {selectedLook.formality && (
+                    <TagChip
+                      label={tValue("formality", selectedLook.formality)}
+                      active={false}
+                    />
+                  )}
+                  <AiBadge
+                    label={`${Math.round(selectedLook.confidence * 100)}% match`}
+                  />
+                </Box>
+
+                {/* Items */}
+                <Box className="mb-4 space-y-3">
+                  <TextLabel className="text-caption font-medium uppercase text-muted-foreground">
+                    {t("outfit.outfit_items")}
+                  </TextLabel>
+                  {selectedLook.items.map((item) => (
+                    <Box
+                      key={item.id}
+                      className="flex items-center gap-3 rounded-lg border border-border bg-card p-3 flex-row"
+                    >
+                      {item.imageUrl ? (
+                        <Picture
+                          src={item.imageUrl}
+                          alt={item.name}
+                          className="h-12 w-12 rounded-lg border border-border object-cover"
+                        />
+                      ) : (
+                        <Box
+                          className="h-12 w-12 rounded-lg border border-border"
+                          style={{ backgroundColor: item.color }}
+                        />
+                      )}
+                      <Box>
+                        <TextLabel className="text-body font-medium text-foreground">
+                          {item.name}
+                        </TextLabel>
+                        <TextLabel className="text-caption uppercase text-muted-foreground">
+                          {tValue("categories", item.category)}
+                        </TextLabel>
+                      </Box>
+                    </Box>
+                  ))}
+                </Box>
+
+                {/* Styling Notes */}
+                <Box className="mb-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
+                  <AiBadge label={t("outfit.styling_notes")} className="mb-2" />
+                  <TextLabel className="text-body text-foreground">
+                    {selectedLook.stylingNotes}
+                  </TextLabel>
+                </Box>
+
+                {/* Suggestion */}
+                <Box className="mb-6 rounded-lg border border-accent/30 bg-accent/10 p-4">
+                  <TextLabel className="mb-1 text-caption font-medium uppercase text-muted-foreground">
+                    {t("outfit.tip")}
+                  </TextLabel>
+                  <TextLabel className="text-body-sm text-foreground">
+                    {selectedLook.confidence >= 0.8
+                      ? "This is a strong match! Consider adding complementary accessories to elevate the look further."
+                      : "Try adding more items to your wardrobe in complementary colors for better outfit variety."}
+                  </TextLabel>
+                </Box>
+
+                {/* Publish / Make Private */}
+                <Box className="flex gap-3 mb-3 flex-row">
+                  <Button
+                    variant={selectedLook.is_public ? "default" : "outline"}
+                    className="flex-1 gap-2 rounded-xl"
+                    onPress={() =>
+                      handlePublish(selectedLook.id, !selectedLook.is_public)
+                    }
+                    disabled={publishing === selectedLook.id}
+                  >
+                    {selectedLook.is_public ? (
+                      <>
+                        <Lock className="h-4 w-4" />
+                        {publishing === selectedLook.id
+                          ? "..."
+                          : t("outfit.make_private")}
+                      </>
+                    ) : (
+                      <>
+                        <Globe className="h-4 w-4" />
+                        {publishing === selectedLook.id
+                          ? "..."
+                          : t("outfit.publish")}
+                      </>
+                    )}
+                  </Button>
+                </Box>
+
+                {/* Share */}
+                <Button
+                  variant="outline"
+                  className="w-full gap-2 rounded-xl mb-3"
+                  onPress={() => handleShare(selectedLook)}
+                  disabled={sharing}
+                >
+                  <Share2 className="h-4 w-4" />
+                  {sharing ? "..." : t("outfit.share")}
+                </Button>
+
+                {/* Delete */}
+                <Button
+                  variant="destructive"
+                  className="w-full gap-2 rounded-xl"
+                  onPress={() => setDeleteTarget(selectedLook.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {t("outfit.delete_look")}
+                </Button>
+                <Box className="h-20" aria-hidden="true" />
+              </Box>
+            </DialogContent>
+          </Dialog>
+        )}
+      </Presence>
+
+      {/* Delete Confirmation */}
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("outfit.delete_this_look")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("outfit.action_cannot_be_undone")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>
+              {t("outfit.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction onPress={handleDelete} disabled={deleting}>
+              {deleting ? t("outfit.deleting") : t("outfit.delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </AppShell>
+  );
+}

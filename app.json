@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "Attira",
+    "slug": "attira-mobile",
+    "version": "0.1.0",
+    "scheme": "attira",
+    "orientation": "portrait",
+    "icon": "./assets/attira-logo.jpeg",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.attiraai.mobile"
+    },
+    "android": {
+      "package": "com.attiraai.mobile",
+      "edgeToEdgeEnabled": true
+    },
+    "plugins": [
+      "expo-font",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Attira necesita acceder a tus fotos para agregar prendas y tu foto de perfil.",
+          "cameraPermission": "Attira necesita la c\u00e1mara para fotografiar tus prendas."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Attira necesita la c\u00e1mara para fotografiar tus prendas.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Attira usa tu ubicaci\u00f3n para personalizar recomendaciones seg\u00fan el clima."
+        }
+      ]
+    ],
+    "platforms": ["ios", "android"]
+  }
+}

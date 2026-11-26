@@ -1,0 +1,24 @@
+name: Native checks
+on:
+  push:
+    branches: [main, migrate/pwa-to-react-native]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "11.25.0"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm exec expo install --check
+      - run: pnpm exec expo export --platform all --output-dir dist
+        env:
+          CI: "1"
