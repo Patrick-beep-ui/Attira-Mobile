@@ -1,0 +1,6 @@
+nodeLinker: hoisted
+allowBuilds:
+  esbuild: true
+  es5-ext: false
+minimumReleaseAgeExclude:
+  - lucide-react-native@1.80.0
